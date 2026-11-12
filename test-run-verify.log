@@ -1,0 +1,22 @@
+▶ MOLT manifest signer key management (fresh TEST-ONLY directories)
+  ✔ accepts the original signer before rotation with the attached independent verifier (595.359549ms)
+  ✔ requires an external trust checkpoint and the emergency path for active-key revocation (606.410063ms)
+  ✔ creates TEST-ONLY identities with owner-only permissions and inspects public metadata without exposing the seed (583.766322ms)
+  ✔ rejects an attacker-substituted recovery key at GENESIS_PROOF_INVALID (586.211771ms)
+  ✔ rotates with old-key authorization and new-key proof; new package passes both checks (607.381981ms)
+  ✔ rejects the old signer after rotation at SIGNER_RETIRED while the legacy independent check alone still validates its package (594.636815ms)
+  ✔ rejects a revoked key at KEY_REVOKED while the current good signer remains accepted (774.876762ms)
+  ✔ rejects a rotation record whose new-key proof was removed at ROTATION_PROOF_INVALID (643.715607ms)
+  ✔ rejects a manifest note signed by the wrong key at MANIFEST_NOTE_SIGNATURE_INVALID (483.86547ms)
+  ✔ rejects event tampering through the attached independent verifier (492.142331ms)
+  ✔ runs compromise response end to end, revokes the taken key, and re-issues only after review (1110.466393ms)
+  ✔ requires owner review before re-issuing already-signed artifacts (471.01813ms)
+✔ MOLT manifest signer key management (fresh TEST-ONLY directories) (7553.922653ms)
+ℹ tests 12
+ℹ suites 1
+ℹ pass 12
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 7755.350286
