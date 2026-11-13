@@ -1,6 +1,6 @@
 # MOLT manifest-signer key management
 
-This package adds offline rotation, revocation, emergency recovery, and re-issue policy around the supplied L1 MOLT package verifier. It uses only Node built-ins and the attached `independent-verifier.ts`; it does not contact Foundry, read a live key, or change any MOLT or Room hashing code.
+This package adds offline rotation, revocation, emergency recovery, and re-issue policy around the MOLT-CORE v1.0 L1 package verifier. It vendors the same verifier and RFC 8785 canonicalizer used by `molt-verify`, with no runtime dependencies. It does not contact Foundry, read a live key, or change MOLT event hashing.
 
 ## Run
 
@@ -15,11 +15,13 @@ node --experimental-strip-types --test tests/key-management.test.mjs
 
 ## What the verifier checks
 
-Run `node bin/molt-keyctl.mjs verify --package PACKAGE_DIR --trust TRUST.json` for every policy decision. The command first validates the signed key-history against the separately held trust checkpoint, then checks whether the package signer is current, retired, or revoked, verifies the exact signed manifest-note entry, and finally calls the supplied `independentlyVerifyMoltPackage` implementation for artifact digests, event hash-chain integrity, Ed25519 event signatures, and actor binding.
+Run `node bin/molt-keyctl.mjs verify --package PACKAGE_DIR --trust TRUST.json` for every policy decision. The command checks the signed key-history against the separately held trust checkpoint, verifies the package signer and manifest note, then runs the same L1 checks as `molt-verify`: required manifest size fields, safe artifact paths and byte counts, canonical JSONL, exact nine-field events, Camp 1 five-field hash and hash-byte signature, actor-key binding, and any manifest anchor.
 
-The supplied independent verifier alone intentionally has no key-history input. It will verify an old package against the old public key embedded in that package even after a rotation. The `molt-keyctl verify` policy layer is what rejects that package against the latest trust checkpoint. Do not use the bare L1 verifier as the rotation/revocation policy gate.
+The package manifest must include `artifacts`, `artifact_bytes`, `agent_pubkeys`, and `ledger_bytes`, and each event line must be canonical and newline-terminated. Packages missing those L1 fields or using the earlier seven-field event scheme fail closed; this tool does not silently convert or rewrite an existing package. Cross-implementation canonicalization is established for ASCII content; MOLT-CORE leaves non-ASCII canonicalization open.
 
-The signed manifest note follows the attached document's exact format: the UTF-8 text inside `Statement signed (exact bytes, UTF-8)` is signed with Ed25519; the public-key and signature hex lines identify that signature. The package stores it as `manifest-note.md`, hashes it in `manifest.json.artifacts`, updates `manifest.json.agent_pubkeys`, updates `ed25519-public.pem`, and re-signs each unchanged event hash. The note signature covers only its exact fenced statement; it does not add a new signature format for the full JSON manifest. The supplied verifier continues to enforce the existing manifest artifact digests and event-signature contract.
+The independent verifier has no key-history input. It can verify an old package against the old public key embedded in that package even after a rotation. The `molt-keyctl verify` policy layer rejects that package against the latest trust checkpoint. Do not use the bare L1 verifier as the rotation/revocation policy gate.
+
+The signed manifest note follows the attached document's exact format: the UTF-8 text inside `Statement signed (exact bytes, UTF-8)` is signed with Ed25519; the public-key and signature hex lines identify that signature. The package stores it as `manifest-note.md`, updates both its digest and byte count in the manifest, updates `agent_pubkeys` and `ed25519-public.pem`, re-signs each unchanged event hash using Camp 1, and refreshes `ledger_bytes` when canonical event lines are rewritten. The note signature covers only its exact fenced statement, not the full JSON manifest.
 
 ## Key and record formats
 

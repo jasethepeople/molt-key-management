@@ -9,6 +9,7 @@ import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import { reissuePackage, verifyPackage } from "../src/key-management.mjs";
 import { independentlyVerifyMoltPackage } from "../source/independent-verifier.ts";
+import { canonicalizeJsonText } from "../source/molt-canonical.mjs";
 
 const roots = new Set();
 const testDirectory = dirname(fileURLToPath(import.meta.url));
@@ -113,8 +114,8 @@ async function makeEvidencePackage(root, identity, actor = "molt-forge-demo") {
   const notePath = join(packageDir, "manifest-note.md");
   const note = signedNote(identity);
   await writeFile(notePath, note);
-  const body = { seq: 0, ts: 1791590400000, type: "manifest.created", payload: { label: "TEST-ONLY" }, actor };
-  const eventHash = sha256(`${"0".repeat(64)}${canonical(body)}`);
+  const body = { seq: 0, ts: 1791590400, type: "manifest.created", payload: { label: "TEST-ONLY" }, actor };
+  const eventHash = sha256(`${"0".repeat(64)}${canonicalizeJsonText(JSON.stringify(body))}`);
   const event = {
     ...body,
     prev_hash: "0".repeat(64),
@@ -122,13 +123,16 @@ async function makeEvidencePackage(root, identity, actor = "molt-forge-demo") {
     pub: identity.publicKeyHex,
     sig: sign(null, Buffer.from(eventHash, "hex"), identity.privateKey).toString("hex"),
   };
-  await writeFile(join(packageDir, "events.jsonl"), `${JSON.stringify(event)}\n`);
+  const eventText = `${canonicalizeJsonText(JSON.stringify(event))}\n`;
+  await writeFile(join(packageDir, "events.jsonl"), eventText);
   await writeFile(join(packageDir, "ed25519-public.pem"), publicObject(identity.publicKeyHex).export({ format: "pem", type: "spki" }));
   const manifest = {
     schema: "molt.evidence.v1",
     key_management_fixture: "TEST-ONLY",
     artifacts: { "artifact.bin": sha256(artifact), "manifest-note.md": sha256(Buffer.from(note)) },
+    artifact_bytes: { "artifact.bin": artifact.byteLength, "manifest-note.md": Buffer.byteLength(note) },
     agent_pubkeys: { [actor]: identity.publicKeyHex },
+    ledger_bytes: Buffer.byteLength(eventText),
   };
   await writeFile(join(packageDir, "manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`);
   return { packageDir, notePath };
@@ -156,6 +160,12 @@ async function rotate(fx, identity = fx.next, suffix = "rotated") {
 }
 
 describe("MOLT manifest signer key management (fresh TEST-ONLY directories)", () => {
+  it("accepts the shared Camp 1 sample package from molt-verify", async () => {
+    const packageDir = join(testDirectory, "fixtures", "camp1-sample-good");
+    const report = await independentlyVerifyMoltPackage(packageDir);
+    assert.equal(report.valid, true);
+    assert.equal(report.count, 2);
+  });
   it("accepts the original signer before rotation with the attached independent verifier", async () => {
     const fx = await fixture();
     const report = await verifyPackage(fx.originalPackage, fx.trustPath);
@@ -264,8 +274,13 @@ describe("MOLT manifest signer key management (fresh TEST-ONLY directories)", ()
     const eventPath = join(fx.originalPackage, "events.jsonl");
     const event = JSON.parse((await readFile(eventPath, "utf8")).trim());
     event.payload.label = "tampered";
-    await writeFile(eventPath, `${JSON.stringify(event)}\n`);
-    await assert.rejects(() => verifyPackage(fx.originalPackage, fx.trustPath), (error) => error.check === "INDEPENDENT_VERIFIER_FAIL" && error.message.includes("Event content hash is invalid"));
+    const ledgerText = `${canonicalizeJsonText(JSON.stringify(event))}\n`;
+    await writeFile(eventPath, ledgerText);
+    const manifestPath = join(fx.originalPackage, "manifest.json");
+    const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
+    manifest.ledger_bytes = Buffer.byteLength(ledgerText, "utf8");
+    await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+    await assert.rejects(() => verifyPackage(fx.originalPackage, fx.trustPath), (error) => error.check === "INDEPENDENT_VERIFIER_FAIL" && error.message.includes("hash mismatch"));
   });
 
   it("runs compromise response end to end, revokes the taken key, and re-issues only after review", async () => {
