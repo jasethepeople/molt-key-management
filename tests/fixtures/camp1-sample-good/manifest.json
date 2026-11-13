@@ -1,0 +1,16 @@
+{
+  "artifacts": {
+    "artifact.txt": "e5e8280c68f135da2186b29ced627bf7700ce8b855c07a1704f62070e579bf50"
+  },
+  "artifact_bytes": {
+    "artifact.txt": 24
+  },
+  "agent_pubkeys": {
+    "foundry-control": "e783fcdf6697a0ed5e370bb9665ca3e8dc5f86c3355222624d2ea4b0e9d43db2"
+  },
+  "ledger_bytes": 950,
+  "anchor": {
+    "seq": 1,
+    "hash": "0c2d611f3177d7d971aa5df569e972d50964cb738899b3b360d1a8b52d036ca8"
+  }
+}

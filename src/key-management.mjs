@@ -2,6 +2,7 @@ import { createHash, createPrivateKey, createPublicKey, generateKeyPairSync, sig
 import { chmod, copyFile, lstat, mkdir, readFile, readdir, rm, stat, writeFile } from "node:fs/promises";
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { independentlyVerifyMoltPackage } from "../source/independent-verifier.ts";
+import { canonicalizeJsonText } from "../source/molt-canonical.mjs";
 
 const PUBLIC_PREFIX = Buffer.from("302a300506032b6570032100", "hex");
 const PRIVATE_PREFIX = Buffer.from("302e020100300506032b657004220420", "hex");
@@ -427,6 +428,7 @@ export async function bootstrapPackage({ packageDir, manifestNotePath, currentId
     }
     const manifest = await readManifest(outDir);
     manifest.artifacts["manifest-note.md"] = sha256(Buffer.from(noteText, "utf8"));
+    manifest.artifact_bytes["manifest-note.md"] = Buffer.byteLength(noteText, "utf8");
     await writeJson(join(outDir, "manifest.json"), manifest);
     await writeJson(join(outDir, "key-history.json"), history);
     await independentCheck(outDir);
@@ -476,7 +478,10 @@ async function reSignPackageFiles(packageDir, oldPublicKeyHex, newIdentity) {
   if (replacements.length !== 1) fail("MANIFEST_NOTE_FORMAT_INVALID", "Manifest note key/signature pair is ambiguous.");
   const updatedNote = note.text.replace(replacements[0][0], `Public key (hex): ${newIdentity.publicKeyHex}\nSignature (hex): ${sign(null, Buffer.from(note.parsed.statement, "utf8"), newIdentity.privateKey).toString("hex")}`);
   manifest.artifacts["manifest-note.md"] = sha256(Buffer.from(updatedNote, "utf8"));
-  await writeFile(eventFile, events.length ? `${events.map((event) => JSON.stringify(event)).join("\n")}\n` : "");
+  manifest.artifact_bytes["manifest-note.md"] = Buffer.byteLength(updatedNote, "utf8");
+  const updatedEventsText = events.length ? `${events.map((event) => canonicalizeJsonText(JSON.stringify(event))).join("\n")}\n` : "";
+  manifest.ledger_bytes = Buffer.byteLength(updatedEventsText, "utf8");
+  await writeFile(eventFile, updatedEventsText);
   await writeFile(join(packageDir, "ed25519-public.pem"), publicPem(newIdentity.publicKeyHex));
   await writeFile(join(packageDir, "manifest-note.md"), updatedNote);
   await writeJson(join(packageDir, "manifest.json"), manifest);

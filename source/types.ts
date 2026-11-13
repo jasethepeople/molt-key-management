@@ -106,7 +106,7 @@ export type MOLTEventBody = {
   seq: number;
   ts: number;
   type: string;
-  payload: Record<string, unknown>;
+  payload: unknown;
   actor: string;
 };
 
